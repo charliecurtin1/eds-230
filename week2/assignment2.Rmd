@@ -1,0 +1,20 @@
+---
+title: "Assignment 2: Almond Yield"
+author: "Charlie Curtin and Linus Ghanadan"
+format: html
+---
+
+### Conceptual Diagram
+
+![Almond yield conceptual diagram.](../week2/almond_yield.png)
+
+### Testing the almond yield anomaly function
+
+```{r, message = FALSE, warning = FALSE}
+# source the function from the R script
+source("../week2/assignment2.R")
+
+# test the function on our clim.txt data
+almond_yield_anomaly("../data/clim.txt")
+```
+

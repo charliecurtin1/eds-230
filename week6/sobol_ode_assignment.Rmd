@@ -1,0 +1,76 @@
+---
+title: "Sobol with ODE Assignment"
+author: "Charlie Curtin"
+output: html_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(deSolve)
+library(sensitivity)
+```
+
+## implementing the forest growth rate model
+
+```{r}
+source("../week6/forest_growth.R")
+
+## define initial parameters
+# initial forest size
+C = 10
+
+# get each timestep for 300 years
+simtimes <- seq(1, 300)
+
+# exponential growth rate, linear growth rate, and carrying capacity
+parms <- list(r = .01, g = 2, K = 250, t = 50)
+
+## run the model for each timestep using the ODE solver
+result <- ode(y = C, times = simtimes, func = forest_growth, parms = parms) %>% 
+  as.data.frame()
+
+# change the column names of the result
+colnames(result) = c("time", "C")
+
+## plot the results
+ggplot(result, aes(time, C)) + 
+  geom_point(color = "orange") +
+  theme_bw() +
+  labs(x = "time (years)",
+       y = "forest size (kg/C)",
+       title = "forest population growth model over 300 years")
+```
+
+## sobol sensitivity with the growth model
+
+```{r}
+# set initial population
+C <- 10
+
+# set the number of parameters
+np <- 2000
+
+# get the 1st set of parameters, sampling the parameters we will vary
+K <- rnorm(mean = 250, sd = 25, n = np)
+r <- rnorm(mean = .01, sd = .001, n = np)
+t <- rnorm(mean = 50, sd = 5, n = np)
+g <- rnorm(mean = 2, sd = .2, n = np)
+
+# bind the 1st set together
+X1 <- cbind.data.frame(r = r, K = K, t = t, g = g)
+
+# get the 2nd set of parameters and bind them together
+K <- rnorm(mean = 250, sd = 25, n = np)
+r <- rnorm(mean = .01, sd = .001, n = np)
+t <- rnorm(mean = 50, sd = 5, n = np)
+g <- rnorm(mean = 2, sd = .2, n = np)
+
+X2 <- cbind.data.frame(r = r, K = K, t = t, g = g)
+
+# remove any negative values from both
+X1 <- X1 %>% map_df(pmax, 0)
+X2 <- X2 %>% map_df(pmax, 0)
+```
+

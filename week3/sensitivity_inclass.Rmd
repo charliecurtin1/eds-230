@@ -1,0 +1,22 @@
+```{r, warning = FALSE, message = FALSE}
+library(sensitivity)
+library(tidyverse)
+library(lhs)
+library(purrr)
+```
+
+## formal sensitivity analysis with atmospheric conductance
+
+```{r}
+# source atmospheric conductance script
+source("../week3/Catm.R")
+```
+
+```{r}
+# set random seed
+set.seed(135)
+
+# name the parameters we are going to vary
+pnames = c("height", "windspeed", "Kd", "K0")
+```
+

@@ -1,0 +1,152 @@
+---
+title: "Sagehen Calibration Assignment"
+author: "Charlie Curtin & Linus Ghanadan"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(sensitivity)
+library(tidyverse)
+library(purrr)
+library(ggpubr)
+```
+
+Part 1: Come up with a combined metric that you think is interesting 
+
+if you can, try to include at least one metric (as part of your combined metric) that needs to be transformed
+be creative
+
+you can subset, aggregate, focus only on particular type of years or days    
+* think about ecological or human water uses that depend on certain flow conditions 
+
+## comparing model and observed time series outputs
+
+Plotting data for the 1990 water year
+
+```{r}
+# read in streamflow data
+sager = read.table("../data/sager.txt", header=T)
+
+# add date column
+sager = sager %>% mutate(date = paste(day,month,year, sep="/"))
+sager$date = as.Date(sager$date,"%d/%m/%Y")
+
+# pivot longer, splitting on the model and observation columns to make data tidy format
+sagerl = sager %>% pivot_longer(cols=c("model","obs"), names_to="source",
+                                  values_to="flow")
+ 
+# plot time series of the model and observed outputs for the 1990 water year, log-transforming the y-axis
+ggplot(subset(sagerl, wy == 1990), aes(date, flow, col = source, linetype = source)) + 
+  geom_line() + 
+  theme_bw() +
+  scale_y_continuous(trans = "log") + 
+  labs(y = "streamflow mm/day")
+```
+
+Analyze the model performance over monthly sum of flow rate values. Our combined metric is the monthly mean absolute error standardized on a scale from 0-1 and the correlation coefficient between the observed and modeled outputs.
+
+```{r, message = FALSE}
+source("../week4/compute_monthly_flow_metrics.R")
+
+compute_monthly_metrics(m = sager$model, o = sager$obs, month = sager$month, wy = sager$wy)
+```
+
+Here, the combined metric calculated over monthly sum of flow rate values demonstrates very low absolute errors (standardized MAE of 0.93) and fairly linear correlation (~0.80). This means our calculated combined metric, 1.73, is reasonably close to the optimal score of 2.
+
+Part II
+
+Perform a split-sample calibration on the Sagehen model output (sagerm.txt) 
+
+you can decide what years to pick for pre and post calibration
+
+use your performance metric from Part I
+
+Find the best and worst parameter set, given your performance metric
+
+```{r, message = FALSE, warning = FALSE}
+# import msage df
+msage <- read.table("../data/sagerm.txt", header = TRUE)
+
+# transfer columns from sager df to msage df
+msage$date = sager$date
+msage$month = sager$month
+msage$year = sager$year
+msage$day = sager$day
+msage$wy = sager$wy
+
+# transform data for analysis
+msagel <- msage %>%
+  pivot_longer(cols =!c(date, month, year, day, wy), names_to = "run", values_to = "flow")
+
+# split the data into pre and post calibration subsets
+pre_calibration <- subset(msage, year >= 1970 & year <= 1979)
+post_calibration <- subset(msage, year >= 1980 & year <= 1989)
+
+# calculate performance metrics for each parameter set across the entire data set
+results = msage %>% 
+  select(-date, -month, -day, -year, -wy ) %>% 
+  map_df(compute_monthly_metrics, o = sager$obs, month = msage$month, wy = msage$wy)
+
+# append the runs to the results
+results$run = seq(from = 1, to = nrow(results))
+colnames(msage) = c(results$run, "date","month","year","day","wy")
+
+# extract best and worst runs based on the combined metric
+best_run <- results$run[which.max(results$combined)]
+worst_run <- results$run[which.min(results$combined)]
+
+paste("Best run:", best_run)
+paste("Worst run:", worst_run)
+```
+
+
+Graph something about streamflow (e.g daily, mean August, or ?) for the best parameter set *
+
+```{r}
+# graph daily streamflow for the best parameter set
+msage %>%
+  mutate(date = as.Date(date)) %>%
+  ggplot(aes(x = date, y = !!sym(as.character(best_run)))) +  # use sym() to convert string to symbol
+  geom_line() +
+  theme_bw() +
+  labs(title = paste("Daily Streamflow for run", best_run), x = "Date", y = "Flow")
+```
+
+Compute and plot how the performance of the model using the best parameter set changed in pre and post calibration periods (that you chose)
+
+Add the 'best' parameter set column number number to the quiz linked below (so we can compare how different metrics influence which parameter you pick)
+
+```{r, message = FALSE, warning = FALSE}
+# define months that are pre and post calibration
+pre_months <- subset(sager, year >= 1970 & year <= 1979)
+post_months <- subset(sager, year >= 1980 & year <= 1989)
+
+# compute monthly combined metric of pre and post calibration results for the best run
+pre_metric <- compute_monthly_metrics(m = pre_calibration[[best_run]],
+                                   o = pre_months$obs, month = pre_months$month, wy = pre_months$wy)
+
+post_metric <- compute_monthly_metrics(m = post_calibration[[best_run]],
+                                    o = post_months$obs, month = post_months$month, wy = post_months$wy)
+
+# prepare data for plotting
+metric_data <- data.frame(
+  calibration = factor(c("Pre (1970-79)", "Post (1980-89)"), levels = c("Pre (1970-79)", "Post (1980-89)")),
+  combined_metric = c(pre_metric$combined, post_metric$combined)
+)
+
+# plot the change in model performance from pre to post calibration
+ggplot(metric_data, aes(x = calibration, y = combined_metric)) +
+  geom_bar(stat = "identity", position = "dodge", fill = "cornflowerblue") +
+  geom_text(aes(label = sprintf("%.2f", combined_metric)), vjust = -0.5) +
+  labs(title = "Change in Model Performance",
+       x = "Calibration Period",
+       y = "Combined Metric") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+Write 2-3 sentences to explain your metric design and comment on model performance based on your metric
+
+Our combined metric is the sum of the mean absolute error (standardized from 0-1 where 1 indicates lowest error) and correlation coefficient (where 1 indicates perfectly linear correlation), so the metric was designed such that a value of 2 would indicate a perfect linear model with no error. Based on our combined metric, the model fit was slightly better in the post-calibration period (1980-89), with a combined metric of 1.73, compared to 1.65 in pre-calibration period (1970-79). Overall, the model seems to have performed pretty well and consistently across both calibration periods.

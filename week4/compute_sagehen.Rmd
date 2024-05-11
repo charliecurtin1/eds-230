@@ -1,0 +1,67 @@
+---
+title: "compute_metrics"
+authors: Charlie Curtin and Linus Ghanadan
+output: html_document
+---
+
+```{r}
+library(sensitivity)
+library(tidyverse)
+library(purrr)
+library(ggpubr)
+```
+
+Part 1: Come up with a combined metric that you think is interesting 
+
+if you can, try to include at least one metric (as part of your combined metric) that needs to be transformed
+be creative
+
+you can subset, aggregate, focus only on particular type of years or days    
+* think about ecological or human water uses that depend on certain flow conditions 
+
+## comparing model and observed time series outputs
+
+Plotting data for the 1990 water year
+
+```{r}
+# read in streamflow data
+sager = read.table("../data/sager.txt", header=T)
+
+# add date column
+sager = sager %>% mutate(date = paste(day,month,year, sep="/"))
+sager$date = as.Date(sager$date,"%d/%m/%Y")
+
+# pivot longer, splitting on the model and observation columns to make data tidy format
+sagerl = sager %>% pivot_longer(cols=c("model","obs"), names_to="source",
+                                  values_to="flow")
+ 
+# plot time series of the model and observed outputs for the 1990 water year, log-transforming the y-axis
+ggplot(subset(sagerl, wy == 1990), aes(date, flow, col = source, linetype = source)) + 
+  geom_line() + 
+  scale_y_continuous(trans = "log") + 
+  labs(y = "streamflow mm/day")
+```
+
+Analyze the model performance over monthly sum of flow rate values. The metric chosen aggregates the water data into the sum of flow rates for each month of each water year. One performance metric is the mean absolute error between the model and the observed outputs, which is then standardized on a scale from 0-1, with 1 meaning better performance. The other metric is the correlation coefficient between the model and the observed outputs, with 1 meaning perfect correlation, or that the model predicted the output perfectly. Since both of these are on the same scale (0-1), they can be added to create our combined metric.
+
+```{r, message = FALSE}
+source("../week4/compute_monthly_flow_metrics.R")
+
+compute_monthly_metrics(m = sager$model, o = sager$obs, month = sager$month, wy = sager$wy)
+```
+
+Part II
+
+Perform a split-sample calibration on the Sagehen model output (sagerm.txt) 
+
+you can decide what years to pick for pre and post calibration
+
+use your performance metric from Part I
+
+Find the best and worst parameter set, given your performance metric
+
+Graph something about streamflow (e.g daily, mean August, or ?) for the best parameter set *
+Compute and plot how the performance of the model using the best parameter set changed in pre and post calibration periods (that you chose)
+Add the 'best' parameter set column number number to the quiz linked below (so we can compare how different metrics influence which parameter you pick) 
+
+Write 2-3 sentences to explain your metric design and comment on model performance based on your metric

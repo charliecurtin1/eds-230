@@ -1,0 +1,161 @@
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+# mean minimum temperature
+temp_min_mean <- climate_data %>% 
+  group_by(month, year) %>% 
+  filter(month == 2) %>% 
+  summarise(mean = mean(tmin_c)) %>% 
+  pull(mean)
+
+temp_min_mean <- min(temp_min_mean)
+
+# average of january precipitation
+precip_mean <- climate_data %>% 
+  group_by(month, year) %>% 
+  filter(month == 1) %>% 
+  summarise(sum = sum(precip)) %>% 
+  pull(sum)
+
+precip_mean <- mean(precip_mean)
+```
+
+-mean yield should be 182
+-max yield should be 1920
+- minimum yield should be -.027
+
+```{r}
+## max
+# filtering to get the max minimum temp
+temp_max_data <- climate_data %>% 
+  group_by(month, year) %>% 
+  summarise(max = max(tmin_c)) %>% 
+  filter(month == 2) %>% 
+  
+
+temp_max <- max(temp)
+
+# precip
+precip_max_data <- climate_data %>% 
+  group_by(month, year) %>%
+  summarise(sum = sum(precip)) %>% 
+  filter(month == 1) %>% 
+  pull(sum)
+
+precip_max <- max(precip)
+
+yield_max <- (-0.015 * temp_max) - (0.0046 * temp_max^2) - (0.07 * precip_max) + (0.0043 * precip_max^2) + 0.28
+
+```
+
+```{r}
+## min
+# filter to get the min minimum temp
+temp_data <- climate_data %>% 
+  group_by(month, year) %>% 
+  summarise(min = min(tmin_c), na.rm = TRUE) %>% 
+  filter(month == 2)
+
+# precip
+precip_data <- climate_data %>% 
+  group_by(month, year) %>% 
+  summarise(sum = sum(precip), na.rm = TRUE) %>% 
+  filter(month == 1)
+
+precip_min <- 2.798
+
+yield_min <- (-0.015 * temp_min) - (0.0046 * temp_min^2) - (0.07 * precip_min) + (0.0043 * precip_min^2) + 0.28
+
+## mean
+temp_mean <- mean(temp_data$mean)
+
+precip_mean_df <- climate_data %>% 
+  group_by(month) %>% 
+  summarise(sum = sum(precip)) %>% 
+  filter(month == 2)
+
+precip_mean <- mean(precip_data$sum)
+
+yield_mean <- (-0.015 * temp_mean) - (0.0046 * temp_mean^2) - (0.07 * precip_mean) + (0.0043 * precip_mean^2) + 0.28
+```
+
+```{r}
+climate_data <- read.csv("/Users/charliecurtin 1/documents/MEDS/courses/EDS-230/eds-230/data/clim.txt", sep = " ")
+
+climate_data <- read.csv("../data/clim.txt", sep = " ")
+## mean
+# filter to get the mean minimum temp
+temp_vec_test <- climate_data %>% 
+  group_by(month, year) %>% 
+  summarise(min = min(tmin_c)) %>% 
+  filter(month == 2) %>% 
+  pull(min)
+  
+
+precip_vec_test <- climate_data %>% 
+  group_by(month, year) %>% 
+  summarise(sum = sum(precip)) %>% 
+  filter(month == 1) %>% 
+  pull(sum)
+
+yield <- (-0.015 * temp_vec_test) - (0.0046 * temp_vec_test^2) - (0.07 * precip_vec_test) + (0.0043 * precip_vec_test^2) + 0.28
+
+min_test <- min(yield)
+max_test <- max(yield)
+mean_test <- mean(yield)
+
+df_test <- data.frame(
+  crop = c("almond"),
+  min_yield = c(min_test)
+)
+```
+
+
+```{r}
+# testing the function
+
+almond_yield_anomaly <- function(climate_txt) {
+  
+  # convert time series climate data text file to a dataframe
+  climate_df <- read.csv(climate_txt, sep = " ")
+  
+  # return a vector of the minimum temperature recorded during each February in the climate dataframe
+  temp_vec <- climate_df %>% 
+    group_by(month, year) %>% # group by month and year 
+    summarise(min = min(tmin_c), na.rm = TRUE) %>% # return a dataframe of the minimum temperature recorded in each month and year
+    filter(month == 2) %>% # filter for observations in February
+    pull(min) # pull the minimum temperature during each February as a vector
+  
+  # return a vector of the sum of precipitation recorded during each January in the climate dataframe
+  precip_vec <- climate_df %>% 
+    group_by(month, year) %>% # group by month and year
+    summarise(sum = sum(precip)) %>% # return a dataframe of the total precipitation in each month and year
+    filter(month == 1) %>% # filter for observations in January
+    pull(sum) # pull the precipitation total during each January as a vector
+  
+  # calculate almond yield anomaly over the range of our vectors
+  almond_yield <- (-0.015 * temp_vec) - (0.0046 * temp_vec^2) - (0.07 * precip_vec) + (0.0043 * precip_vec^2) + 0.28
+  
+  # assign the minimum, maximum, and mean yield anomalies
+  min_yield <- min(almond_yield)
+  max_yield <- max(almond_yield)
+  mean_yield <- mean(almond_yield)
+
+  # bind the maximum, minimum, and mean yield anomaly in a dataframe
+  almond_yield_df <- data.frame(
+    crop = c("almond"),
+    min_yield = c(min_yield),
+    max_yield = c(max_yield),
+    mean_yield = c(mean_yield)
+  )
+  
+  # return the dataframe
+  return(almond_yield_df)
+}
+
+almond_yield_anomaly("../data/clim.txt")
+```
+

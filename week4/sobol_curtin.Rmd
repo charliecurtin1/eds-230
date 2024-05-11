@@ -1,0 +1,136 @@
+---
+title: "Assignment 4: Sobol Sensitivity"
+author: Charlie Curtin
+date: "04-24-2024"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+library(sensitivity)
+library(tidyverse)
+library(gridExtra)
+library(purrr)
+library(ggpubr)
+```
+
+
+## Part 1
+
+The paper discusses parameter uncertainty in the VIC snow model's expA1 and expA2 parameters, which affect the model's snow water equivalent outputs. Using a Sobol sensitivity analysis, the authors found that the model was highly sensitive to changes in the expA2 parameter. This uncertainty affects model outputs but also calls into question the model's performance with changing climate scenarios. This could lead to issues with snow water equivalent forecasting.
+
+## Part 2
+
+Using sobol salt to conduct sobol sensitivity
+
+```{r}
+# source atmospheric conductance function
+source("../week3/Catm.R")
+
+## generate random range of parameters to input into the model
+# specify 1000 numbers
+np = 1000
+
+# generate windspeeds with a mean of 300 and a standard deviation of 50
+v = rnorm(mean = 300, sd = 50, n = np)
+
+# generate vegetation heights between 3.5 and 5.5 meters
+height = runif(min = 3.5, max = 5.5, n = np)
+
+# generate k_o parameter, normally distributed with a standard deviation 1% of the default value
+k_o = rnorm(mean = 0.1, sd = 0.1*0.01, n = np)
+
+# generate k_d parameter, normally distributed with a standard deviation 1% of the default value
+k_d = rnorm(mean = 0.7, sd = 0.7*0.01, n = np)
+
+# bind the parameter sets together
+param1 = cbind.data.frame(k_o, k_d, v, height)
+
+## generate another set to input into the model
+# generate windspeeds with a mean of 300 and a standard deviation of 50
+v2 = rnorm(mean = 300, sd = 50, n = np)
+
+# generate vegetation heights between 3.5 and 5.5 meters
+height2 = runif(min = 3.5, max = 5.5, n = np)
+
+# generate k_o parameter, normally distributed with a standard deviation 1% of the default value
+k_o2 = rnorm(mean = 0.1, sd = 0.1*0.01, n = np)
+
+# generate k_d parameter, normally distributed with a standard deviation 1% of the default value
+k_d2 = rnorm(mean = 0.7, sd = 0.7*0.01, n = np)
+
+# bind the parameter sets together
+param2 = cbind.data.frame(k_o2, k_d2, v2, height2)
+
+# run sobol model
+atm_sobol <- sobolSalt(model = NULL, param1, param2, nboot = 100)
+```
+
+
+```{r}
+## save parameter outputs from the Sobol salt
+params <- as.data.frame(atm_sobol$X)
+ 
+# set the column names to be the names of the parameters
+colnames(params) <- colnames(param1)
+
+# run the atmospheric conductance model for all of the parameter sets
+res <- pmap_dbl(params, Catm)
+
+# gather sensitivity metrics for our results
+atm_sobol <- sensitivity::tell(atm_sobol, res, res.names = "ga")
+
+# attach the original model parameter names and extract the main effect
+row.names(atm_sobol$S) = colnames(params)
+atm_sobol$S
+
+# attach the original model parameter names and extract the total effect
+row.names(atm_sobol$T) = colnames(params)
+atm_sobol$T
+```
+
+```{r, message = FALSE}
+# graph two most sensitive parameters
+both = cbind.data.frame(params, gs = atm_sobol$y)
+
+# plot histogram of conductance estimates
+ggplot(both, aes(x = gs)) + 
+  geom_histogram() + 
+  theme_bw() +
+  geom_vline(xintercept = mean(both$gs), col="cyan")
+
+# plot conductance against windspeed and color by height, the second most sensitive parameter
+ggplot(both, aes(v, gs, col = height)) + 
+  geom_point() + 
+  theme_bw() +
+  labs(y = "Conductance (mm/s)", x = "Windspeed")
+```
+
+```{r}
+# run sobolSalt for the second order indices
+atm_sobol2 = sobolSalt(model = NULL, param1, param2, nboot = 100, scheme = "B")
+
+params2 = as.data.frame(atm_sobol2$X)
+
+# set the column names to be the names of the parameters
+colnames(params2) = colnames(param1)
+
+# run the atmospheric conductance model for all of the parameter sets
+res2 = pmap_dbl(params2, Catm)
+
+# gather sensitivity metrics for our results
+atm_sobol2 = sensitivity::tell(atm_sobol2, res2, res.names = "ga")
+
+# extract the main effect
+row.names(atm_sobol2$S) = colnames(params2)
+atm_sobol2$S
+
+# extract the total effect
+row.names(atm_sobol2$T) = colnames(params2)
+atm_sobol2$T
+
+# show the parameter interactions
+atm_sobol2$S2
+```
+
+For the assignment, we created more variance in windspeed and a shorter range of heights. We created less variance in the k_o and k_d parameters. This caused the sensitivity of our model to changes in k_o and k_d to drop much more than the in-class example. It appears that when you introduce more variance in a parameter, the model becomes more sensitive to it.
+
